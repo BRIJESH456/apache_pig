@@ -1,1 +1,276 @@
 	
+/user/cloudera/data/NYSE_daily
+/user/cloudera/data/NYSE_dividends
+/user/cloudera/data/README
+/user/cloudera/data/baseball
+/user/cloudera/data/webcrawl
+
+--CHAPTER ONE : Introduction
+--word count
+data = load '/user/cloudera/data/Mary/' as (line);
+describe data;
+words = foreach data generate flatten(TOKENIZE(line)) as word;
+describe words;
+grpd = group words by word;
+describe grpd;
+cntd = foreach grpd generate group, COUNT(words) AS CNT;
+describe cntd;
+DUMP cntd;
+
+--Group then join in Pig Latin
+-- Load the transactions file, group it by customer, and sum their total purchases
+txns = load 'transactions' as (customer, purchase);
+grouped = group txns by customer;
+total = foreach grouped generate group, SUM(txns.purchase) as tp;
+-- Load the customer_profile file
+profile = load 'customer_profile' as (customer, zipcode);
+-- join the grouped and summed transactions and customer_profile data
+answer = join total by group, profile by customer;
+-- Write the results to the screen
+dump answer;
+
+--Finding the top five URLs
+Users = load 'users' as (name, age);
+Fltrd = filter Users by age >= 18 and age <= 25;
+Pages = load 'pages' as (user, url);
+Jnd = join Fltrd by name, Pages by user;
+Grpd = group Jnd by url;
+Smmd = foreach Grpd generate group, COUNT(Jnd) as clicks;
+Srtd = order Smmd by clicks desc;
+Top5 = limit Srtd 5;
+store Top5 into 'top5sites';
+
+--CHAPTER TWO : Installing and Running Pig
+--Running Pig in local mode pig -x local
+dividends = load '/user/cloudera/data/NYSE_dividends' as (exchange, symbol, date, dividend);
+-- group rows together by stock ticker symbol
+grouped = group dividends by symbol;
+-- calculate the average dividend per symbol
+avg = foreach grouped generate group, AVG(dividends.dividend);
+-- store the results to average_dividend
+store avg into 'average_dividend';
+
+--Pig return codes
+0 Success
+1 Retriable failure
+2 Failure
+3 Partial failure Used with multiquery;
+4 Illegal arguments passed to Pig
+5 IOException thrown Would usually be thrown by a UDF
+6 PigException thrown Usually means a Python UDF raised an exception
+7 ParseException thrown (can happen after parsing if variable substitution is being done)
+8 Throwable thrown (an unexpected exception)
+
+
+--CHAPTER THREE : Grunt
+[cloudera@quickstart Desktop]$ pig -h
+log4j:WARN No appenders could be found for logger (org.apache.hadoop.util.Shell).
+log4j:WARN Please initialize the log4j system properly.
+log4j:WARN See http://logging.apache.org/log4j/1.2/faq.html#noconfig for more info.
+
+Apache Pig version 0.12.0-cdh5.13.0 (rexported)
+compiled Oct 04 2017, 11:09:03
+
+USAGE: Pig [options] [-] : Run interactively in grunt shell.
+       Pig [options] -e[xecute] cmd [cmd ...] : Run cmd(s).
+       Pig [options] [-f[ile]] file : Run cmds found in file.
+  options include:
+    -4, -log4jconf - Log4j configuration file, overrides log conf
+    -b, -brief - Brief logging (no timestamps)
+    -c, -check - Syntax check
+    -d, -debug - Debug level, INFO is default
+    -e, -execute - Commands to execute (within quotes)
+    -f, -file - Path to the script to execute
+    -g, -embedded - ScriptEngine classname or keyword for the ScriptEngine
+    -h, -help - Display this message. You can specify topic to get help for that topic.
+        properties is the only topic currently supported: -h properties.
+    -i, -version - Display version information
+    -l, -logfile - Path to client side log file; default is current working directory.
+    -m, -param_file - Path to the parameter file
+    -p, -param - Key value pair of the form param=val
+    -r, -dryrun - Produces script with substituted parameters. Script is not executed.
+    -t, -optimizer_off - Turn optimizations off. The following values are supported:
+            SplitFilter - Split filter conditions
+            PushUpFilter - Filter as early as possible
+            MergeFilter - Merge filter conditions
+            PushDownForeachFlatten - Join or explode as late as possible
+            LimitOptimizer - Limit as early as possible
+            ColumnMapKeyPrune - Remove unused data
+            AddForEach - Add ForEach to remove unneeded columns
+            MergeForEach - Merge adjacent ForEach
+            GroupByConstParallelSetter - Force parallel 1 for "group all" statement
+            All - Disable all optimizations
+        All optimizations listed here are enabled by default. Optimization values are case insensitive.
+    -v, -verbose - Print all error messages to screen
+    -w, -warning - Turn warning logging on; also turns warning aggregation off
+    -x, -exectype - Set execution mode: local|mapreduce, default is mapreduce.
+    -F, -stop_on_failure - Aborts execution on the first failed job; default is off
+    -M, -no_multiquery - Turn multiquery optimization off; default is on
+    -P, -propertyFile - Path to property file
+    -printCmdDebug - Overrides anything else and prints the actual command used to run Pig, including
+                     any environment variables that are set by the pig command.
+
+--CHAPTER FOUR: Pig’s Data Model
+Types
+Scalar Types
+int
+long 5000000000L
+float 3.14f
+double 
+chararray
+
+Complex Types
+Map
+Tuple
+Bag
+
+Null
+
+
+Schemas
+dividends = load '/user/cloudera/data/NYSE_dividends' as (exchange:chararray, symbol:chararray, date:chararray, dividend:float);
+grunt> describe dividends;
+dividends: {exchange: chararray,symbol: chararray,date: chararray,dividend: float}
+
+dividends = load '/user/cloudera/data/NYSE_dividends' as (exchange, symbol, date, dividend);
+grunt> describe dividends;
+dividends: {exchange: bytearray,symbol: bytearray,date: bytearray,dividend: bytearray}
+
+int int as (a:int)
+long long as (a:long)
+float float as (a:float)
+double double as (a:double)
+chararray chararray as (a:chararray)
+bytearray bytearray as (a:bytearray)
+map map[] or map[type], where type is any valid type. This declares all values
+in the map to be of this type.
+as (a:map[],
+b:map[int])
+tuple tuple() or tuple(list_of_fields), where list_of_fields is a
+comma-separated list of field declarations.
+as (a:tuple(),
+b:tuple(x:int,
+y:int))
+bag bag{} or bag{t:(list_of_fields)}, where list_of_fields is a
+comma-separated list of field declarations. Note that, oddly enough, the tuple
+inside the bag must have a name, here specified as t, even though you will never
+be able to access that tuple t directly.
+(a:bag{}, b:bag{t:
+(x:int, y:int)})
+
+player = load '/user/cloudera/data/baseball' as (name:chararray, team:chararray, pos:bag{t:(p:chararray)}, bat:map[]);
+grunt> describe player;
+player: {name: chararray,team: chararray,pos: {t: (p: chararray)},bat: map[]}
+(Landon Powell,Oakland Athletics,{(Catcher),(First_baseman)},[on_base_percentage#0.297,games#46,grand_slams#1,home_runs#7,at_bats#140,sacrifice_flies#1,gdb#3,base_on_balls#14,hits#32,rbis#30,slugging_percentage#0.429,batting_average#0.229,doubles#7,strikeouts#36,runs#19])
+
+--CHAPTER five : Introduction to Pig Latin
+--Comments
+A = load 'foo'; --this is a single-line comment
+/*
+* This is a multiline comment.
+*/
+B = load /* a comment in the middle */'bar';
+
+--Input and Output
+Load
+Store
+store processed into '/data/examples/processed';
+store processed into 'processed' using PigStorage(',');
+Dump
+
+--Relational Operations
+foreach
+prices = load 'NYSE_daily' as (exchange, symbol, date, open,
+high, low, close, volume, adj_close);
+beginning = foreach prices generate ..open; -- produces exchange, symbol, date, open
+middle = foreach prices generate open..close; -- produces open, high, low, close
+end = foreach prices generate volume..; -- produces volume, adj_close
+	Expressions in foreach
+	UDFs in foreach
+	Naming fields in foreach
+	
+--Filter
+divs = load 'NYSE_dividends' as (exchange:chararray, symbol:chararray, date:chararray, dividends:float);
+startswithcm = filter divs by symbol matches 'CM.*';
+notstartswithcm = filter divs by not symbol matches 'CM.*';
+
+--Group
+daily = load '/user/cloudera/data/NYSE_daily' as (exchange, stock, date, dividends);
+grpd = group daily by (exchange, stock);
+grunt> test = foreach grpd generate group, daily.exchange;
+grunt> describe test;
+test: {group: (exchange: bytearray,stock: bytearray),{(exchange: bytearray)}}
+grunt> test = foreach grpd generate group.exchange, daily.exchange;
+grunt> describe test;
+test: {exchange: bytearray,{(exchange: bytearray)}}
+
+--Order by
+bydate = order daily by date;
+
+grunt> test = foreach bydate generate exchange;
+grunt> describe test;
+test: {exchange: bytearray}
+grunt> test = foreach bydate generate bydate.exchange;
+grunt>  describe test;
+test: {exchange: bytearray}
+
+--Distinct
+
+--Join
+daily = load '/user/cloudera/data/NYSE_daily' as (exchange, symbol, date, open, high, low, close, volume, adj_close);
+divs = load '/user/cloudera/data/NYSE_dividends' as (exchange, symbol, date, dividends);
+jnd = join daily by symbol, divs by symbol;
+
+
+--Limit
+first10 = limit divs 10;
+
+--Sample
+some = sample divs 0.1;
+
+--Parallel
+bysymbl = group daily by symbol parallel 10;
+
+set default_parallel 10;
+
+--Registering UDFs
+register 'your_path_to_piggybank/piggybank.jar';
+define reverse org.apache.pig.piggybank.evaluation.string.Reverse();
+
+
+--CHAPTER SIX: Advanced Pig Latin
+Advanced Relational Operations
+Advanced Features of foreach
+
+flatten
+
+players = load 'baseball' as (name:chararray, team:chararray, position:bag{t:(p:chararray)}, bat:map[]);
+noempty = foreach players generate name, ((position is null or IsEmpty(position)) ? {('unknown')} : position) as position;
+pos = foreach noempty generate name, flatten(position) as position;
+bypos = group pos by position;
+
+Nested foreach
+daily = load 'NYSE_daily' as (exchange, symbol); -- not interested in other fields
+grpd = group daily by exchange;
+uniqcnt = foreach grpd {
+sym = daily.symbol;
+uniq_sym = distinct sym;
+generate group, COUNT(uniq_sym);
+};
+
+Joining small to large data - replicated';
+Joining skewed data - skewed';
+Joining sorted data - merge';
+
+
+cogroup
+daily = load 'NYSE_daily' as (exchange:chararray, symbol:chararray, date:chararray, open:float, high:float, low:float,
+close:float, volume:int, adj_close:float);
+divs = load 'NYSE_dividends' as (exchange:chararray, symbol:chararray, date:chararray, dividends:float);
+grpd = cogroup daily by (exchange, symbol), divs by (exchange, symbol);
+sjnd = filter grpd by not IsEmpty(divs);
+final = foreach sjnd generate flatten(daily);
+
+union
+C = union A, B;
+
