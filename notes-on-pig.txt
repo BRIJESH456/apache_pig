@@ -274,3 +274,5 @@ final = foreach sjnd generate flatten(daily);
 union
 C = union A, B;
 
+
+http://pivotalhd.docs.pivotal.io/docs/importing-data-into-hbase.html
